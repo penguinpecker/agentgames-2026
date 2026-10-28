@@ -1,0 +1,7 @@
+research/
+drafts/
+docs/
+tests/
+scripts/
+.env*
+!.env.example

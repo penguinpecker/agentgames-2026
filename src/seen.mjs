@@ -22,3 +22,13 @@ export async function markAccepted(proofTx, taskId) {
   memory.set(tx, taskId);
   await put(`seen/${tx}/${safe(taskId)}`, String(taskId), { access: 'private', addRandomSuffix: false, allowOverwrite: true });
 }
+
+// Every scored task + our reply, kept past Vercel Hobby's ~1 h log window
+// (disputes have 72 h; replays show opponents). 3 s cap so it never costs a turn.
+export async function archive(kind, envelope, payload) {
+  const id = kind === 'steal' ? `${safe(envelope.matchId)}/${String(envelope.turn).padStart(2, '0')}` : safe(envelope.task_id);
+  await put(`log/${kind}/${id}.json`, JSON.stringify({ receivedAt: new Date().toISOString(), envelope, payload }), {
+    access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json',
+    abortSignal: AbortSignal.timeout(3000),
+  });
+}

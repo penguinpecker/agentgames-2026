@@ -57,3 +57,18 @@ test('handler output is returned signed', async () => {
   assert.equal(r.status, 200);
   assert.deepEqual(JSON.parse(r.body), { matchId: 'm1', turn: 3, action: { type: 'HOLD' } });
 });
+
+test('only competition tasks are archived, and a failing archive still returns the signed reply', async () => {
+  const handlers = { steal: async e => ({ matchId: e.matchId, turn: e.turn, action: { type: 'HOLD' } }) };
+  const seen = [];
+  const archive = async (k, e, p) => { seen.push([k, e.mode, p.turn]); throw new Error('blob down'); };
+  const send = env => { const raw = Buffer.from(JSON.stringify(env)); return handle(raw, hmac(raw, secret).toString('hex'), { secret, handlers, now, log: () => {}, archive }); };
+  const base = { eventId: 'steal-the-vfy', matchId: 'm1', turn: 4, issuedAt: new Date(now).toISOString() };
+  const r = await send({ ...base, mode: 'competition' });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers['x-agent-games-signature'], hmac(r.body, secret).toString('hex'));
+  await send({ ...base, mode: 'practice' });
+  await send(preflight);
+  assert.deepEqual(seen, [['steal', 'competition', 4]]);
+});
+

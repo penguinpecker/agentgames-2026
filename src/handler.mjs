@@ -15,7 +15,7 @@ export const kind = envelope =>
 
 // Transport core shared by the Vercel function and the local server.
 // handlers: { gatekeeper(envelope), steal(envelope) } -> response payload.
-export async function handle(raw, signature, { secret, handlers, now = Date.now(), log = console.log }) {
+export async function handle(raw, signature, { secret, handlers, now = Date.now(), log = console.log, archive }) {
   const signer = authenticate(raw, signature, secret);
   if (!signer) {
     log(JSON.stringify({ at: 'auth-failed', signatureHeader: String(signature ?? '').slice(0, 80), bytes: raw.length, head: raw.subarray(0, 300).toString() }));
@@ -37,6 +37,9 @@ export async function handle(raw, signature, { secret, handlers, now = Date.now(
   try {
     const payload = await handlers[type](envelope);
     log(JSON.stringify({ at: 'response', kind: type, payload }));
+    if (archive && envelope.mode === 'competition') {
+      await archive(type, envelope, payload).catch(error => log(JSON.stringify({ at: 'archive-failed', error: String(error) })));
+    }
     return json(200, payload, signer);
   } catch (error) {
     log(JSON.stringify({ at: 'handler-error', kind: type, error: error.stack ?? String(error) }));

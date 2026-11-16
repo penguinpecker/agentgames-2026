@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decide, HOLD, FORTIFY, EXTRACT } from '../src/policy.mjs';
-import { publicInputsHash, idempotencyKey, holdWithoutProof } from '../src/steal.mjs';
+import { publicInputsHash, idempotencyKey } from '../src/steal.mjs';
 
 const st = (selfBalance, opponentBalance) => ({ selfBalance: BigInt(selfBalance), opponentBalance: BigInt(opponentBalance) });
 
@@ -23,13 +23,4 @@ test('idempotency key is stable per turn and differs across turns', () => {
   assert.equal(idempotencyKey('m', 1), idempotencyKey('m', 1));
   assert.notEqual(idempotencyKey('m', 1), idempotencyKey('m', 2));
   assert.match(idempotencyKey('m', 1), /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-});
-
-test('fallback HOLD omits action.amount entirely', () => {
-  const r = holdWithoutProof({ matchId: '9f4e1b2a-0000-4000-8000-000000000001', turn: 2, mode: 'practice', state: { selfBalance: '100', opponentBalance: '100' } });
-  assert.deepEqual(r.action, { type: 'HOLD' });
-  assert.equal(r.turn, 2);
-  assert.equal(r.protocolVersion, 'v1');
-  assert.match(r.policyProof.publicInputsHash, /^0x[0-9a-f]{64}$/);
-  assert.equal(r.policyProof.proof, undefined);
 });

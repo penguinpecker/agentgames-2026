@@ -1,19 +1,9 @@
-// Each game handler fails to its safest scored answer instead of a 5xx:
-// Steal falls back to HOLD, Gatekeeper to REJECT (wrong reject −3 beats timeout/approving a trap).
+// Steal errors go to the 5xx path: a missed turn is HOLD −1 and the platform re-pushes within the
+// 5-min window, while an accepted proofless HOLD is −2 and final. Gatekeeper falls back to REJECT.
 export const handlers = {
   async steal(envelope) {
-    try {
-      const { stealTurn } = await import('./steal.mjs');
-      return await stealTurn(envelope);
-    } catch (error) {
-      console.log(JSON.stringify({ at: 'steal-fallback', error: error.stack ?? String(error) }));
-      try {
-        const { holdWithoutProof } = await import('./steal.mjs');
-        return holdWithoutProof(envelope);
-      } catch {
-        return { protocolVersion: 'v1', matchId: envelope.matchId, turn: envelope.turn, action: { type: 'HOLD' }, policyProof: { circuitVersion: 'v1' }, agentTimestamp: new Date().toISOString() };
-      }
-    }
+    const { stealTurn } = await import('./steal.mjs');
+    return stealTurn(envelope);
   },
   async gatekeeper(envelope) {
     try {

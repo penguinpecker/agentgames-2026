@@ -8,10 +8,23 @@ import { list, put } from '@vercel/blob';
 const memory = new Map();
 const safe = s => encodeURIComponent(String(s)).slice(0, 200);
 
+// Hard time cap on a Blob call, so a slow or failing store can never hold a scored reply.
+// Not AbortSignal.timeout(): @vercel/blob retries its 'TimeoutError' (only 'AbortError' stops it),
+// for 17+ min. abort() without a reason raises AbortError, and the race caps us even mid-backoff.
+export function within(ms, call) {
+  const ctrl = new AbortController();
+  let timer;
+  const cap = new Promise((_, reject) => {
+    timer = setTimeout(() => { ctrl.abort(); reject(new Error(`blob call over ${ms} ms`)); }, ms);
+  });
+  return Promise.race([call(ctrl.signal), cap]).finally(() => clearTimeout(timer));
+}
+
+// Read cap is generous: a timed-out read counts as "not seen", which would approve a reuse trap (-6).
 export async function acceptedBy(proofTx) {
   const tx = proofTx.toLowerCase();
   if (memory.has(tx)) return memory.get(tx);
-  const { blobs } = await list({ prefix: `seen/${tx}/`, limit: 1 });
+  const { blobs } = await within(10_000, abortSignal => list({ prefix: `seen/${tx}/`, limit: 1, abortSignal }));
   const taskId = blobs[0] && decodeURIComponent(blobs[0].pathname.split('/')[2]);
   if (taskId) memory.set(tx, taskId);
   return taskId;
@@ -20,15 +33,15 @@ export async function acceptedBy(proofTx) {
 export async function markAccepted(proofTx, taskId) {
   const tx = proofTx.toLowerCase();
   memory.set(tx, taskId);
-  await put(`seen/${tx}/${safe(taskId)}`, String(taskId), { access: 'private', addRandomSuffix: false, allowOverwrite: true });
+  await within(5_000, abortSignal => put(`seen/${tx}/${safe(taskId)}`, String(taskId),
+    { access: 'private', addRandomSuffix: false, allowOverwrite: true, abortSignal }));
 }
 
 // Every scored task + our reply, kept past Vercel Hobby's ~1 h log window
 // (disputes have 72 h; replays show opponents). 3 s cap so it never costs a turn.
 export async function archive(kind, envelope, payload) {
   const id = kind === 'steal' ? `${safe(envelope.matchId)}/${String(envelope.turn).padStart(2, '0')}` : safe(envelope.task_id);
-  await put(`log/${kind}/${id}.json`, JSON.stringify({ receivedAt: new Date().toISOString(), envelope, payload }), {
-    access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json',
-    abortSignal: AbortSignal.timeout(3000),
-  });
+  await within(3_000, abortSignal => put(`log/${kind}/${id}.json`, JSON.stringify({ receivedAt: new Date().toISOString(), envelope, payload }), {
+    access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json', abortSignal,
+  }));
 }

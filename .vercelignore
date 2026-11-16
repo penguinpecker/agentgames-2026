@@ -5,3 +5,4 @@ tests/
 scripts/
 .env*
 !.env.example
+.state/

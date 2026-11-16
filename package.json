@@ -7,7 +7,7 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test --test-force-exit tests/*.test.mjs",
     "proofs": "node scripts/verify-circuits.mjs",
     "local": "node src/server.mjs"
   },

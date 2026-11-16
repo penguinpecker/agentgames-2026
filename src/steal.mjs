@@ -65,12 +65,6 @@ const commitments = (envelope, cfg) => {
   return { hash: sent ?? cfg?.commitment ?? 0n, proof: cfg?.commitment ?? sent };
 };
 
-export function holdWithoutProof(envelope) {
-  let cfg;
-  try { cfg = config(); } catch { /* fall through with envelope commitment */ }
-  return respond(envelope, state(envelope), { action: HOLD, amount: 0n }, commitments(envelope, cfg).hash);
-}
-
 export async function stealTurn(envelope, log = console.log) {
   const { matchId, turn } = envelope;
   if (typeof matchId !== 'string' || !Number.isSafeInteger(turn) || !envelope.state) throw new Error('Malformed turn envelope');

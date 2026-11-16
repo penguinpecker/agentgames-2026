@@ -31,7 +31,7 @@ export function evaluateStatement(input, acceptedProofs = new Set()) {
     .map(field => [field, uint64(input[field], field)]));
 
   const reject = (reason_code, category) => ({ decision: 'REJECT', reason_code, category, proof_tx: proofTx });
-  if (acceptedProofs.has(proofTx)) return reject('PROOF_REPLAY', 'PROOF_REUSED');
+  if (acceptedProofs.has(proofTx)) return reject('PROOF_REUSED', 'PROOF_REUSED');
   if (registeredVk !== proofVk) return reject('VK_SUBSTITUTION', 'VK_SUBSTITUTION');
   if (numbers.public_balance < numbers.minimum) return reject('THRESHOLD_MISMATCH', 'THRESHOLD_MISMATCH');
   // The supplied circuit requires currentBlock < expiryBlock. Equality rejects.

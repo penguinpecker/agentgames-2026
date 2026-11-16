@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { evaluateStatement } from '../src/gatekeeper.mjs';
+import { gatekeeperTask } from '../src/gatekeeper-task.mjs';
+import { markAccepted } from '../src/seen.mjs';
 
 const hex = (n, bytes) => `0x${BigInt(n).toString(16).padStart(bytes * 2, '0')}`;
 export const validInput = {
@@ -23,7 +25,12 @@ for (const [name, patch, expected] of [
   test(name, () => assert.equal(evaluateStatement({ ...validInput, ...patch }).reason_code, expected));
 }
 test('accepted proof replay rejects', () => {
-  assert.equal(evaluateStatement(validInput, new Set([validInput.proof_tx])).reason_code, 'PROOF_REPLAY');
+  assert.equal(evaluateStatement(validInput, new Set([validInput.proof_tx])).reason_code, 'PROOF_REUSED');
+});
+test('replay reply is exactly { REJECT, PROOF_REUSED }: no proof, no proof_tx', async () => {
+  await markAccepted(validInput.proof_tx, 'task_earlier').catch(() => {}); // Blob write fails offline; memory is set
+  const reply = await gatekeeperTask({ task_id: 'task_now', input: validInput }, () => {});
+  assert.deepEqual(reply, { decision: 'REJECT', reason_code: 'PROOF_REUSED' });
 });
 test('integer comparisons retain precision above Number.MAX_SAFE_INTEGER', () => {
   assert.equal(evaluateStatement({ ...validInput, minimum: '9007199254740993', public_balance: '9007199254740992' }).decision, 'REJECT');

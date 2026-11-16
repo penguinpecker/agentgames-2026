@@ -26,9 +26,11 @@ export async function gatekeeperTask(envelope, log = console.log) {
   catch (error) { log(JSON.stringify({ at: 'seen-read-failed', error: String(error) })); }
   const replay = prior !== undefined && prior !== envelope.task_id;
   const result = evaluateStatement(input, replay ? new Set([String(input.proof_tx).toLowerCase()]) : new Set());
-  const response = { decision: result.decision, reason_code: result.reason_code, proof_tx: input.proof_tx };
-  // A replay has no fresh statement to prove; the docs exclude it from the proof bonus.
-  if (result.reason_code !== 'PROOF_REPLAY') {
+  const response = { decision: result.decision, reason_code: result.reason_code };
+  // A replay reply is exactly { decision, reason_code }: no proof (the circuit cannot prove reuse) and no
+  // proof_tx echo. 17 Nov R04: { REJECT, PROOF_REPLAY, proof_tx } was scored as a timeout (-2).
+  if (result.reason_code !== 'PROOF_REUSED') {
+    response.proof_tx = input.proof_tx;
     try {
       Object.assign(response, await proveGatekeeper(witnessFor(envelope, result.decision === 'APPROVE')));
     } catch (error) {
